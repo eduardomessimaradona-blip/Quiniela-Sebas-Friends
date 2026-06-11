@@ -321,6 +321,12 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
         <button class="btn red-btn full" onclick="saveBonusResults()" style="margin-top:10px">💾 Guardar bonus</button>
       </div>
       <div class="card">
+        <div class="card-head">⚽ Resultados de partidos</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Introduce el marcador final a 90 minutos de cada partido jugado.</p>
+        <div id="resultadosAdmin"></div>
+        <button class="btn red-btn full" onclick="saveResultadosAdmin()" style="margin-top:10px">💾 Guardar resultados</button>
+      </div>
+      <div class="card">
         <div class="card-head">🏅 Clasificados a octavos</div>
         <div id="clasifAdmin"></div>
         <button class="btn red-btn full" onclick="saveClasifResults()" style="margin-top:10px">💾 Guardar clasificados</button>
@@ -355,7 +361,7 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
 const SUPABASE_URL='https://lnefvahjpfbtomupfgkd.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZWZ2YWhqcGZidG9tdXBmZ2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzMyNTUsImV4cCI6MjA5NTIwOTI1NX0.Prb2IP_Znj3m0PumoW6vIbDUpdEBM7i4Z8gq17HQ6fQ';
 const FOOTBALL_API_KEY='173de29b7acd450282d6cb39b9627468';
-const GRUPO_ID='Amigos';
+const GRUPO_ID='familia';
 const LOCK_HOURS=1; // horas antes de bloquear
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
@@ -708,29 +714,6 @@ async function loadResults(){
 }
 
 // ── API FOOTBALL-DATA.ORG ─────────────────────────────────────
-
-// ── MAPA NOMBRES API (inglés) → NUESTROS NOMBRES (español) ──
-const API_NAME_MAP={
-  'mexico':'México','korearepublic':'Corea del Sur','southafrica':'Sudáfrica',
-  'czechia':'Rep. Checa','canada':'Canadá','switzerland':'Suiza','qatar':'Qatar',
-  'bosniaandherzegovina':'Bosnia-Herz.','brazil':'Brasil','morocco':'Marruecos',
-  'scotland':'Escocia','haiti':'Haití','unitedstates':'USA','paraguay':'Paraguay',
-  'australia':'Australia','turkiye':'Turquía','germany':'Alemania','ecuador':'Ecuador',
-  'cotedivoire':'Costa de Marfil','curacao':'Curazao','netherlands':'Países Bajos',
-  'japan':'Japón','tunisia':'Túnez','sweden':'Suecia','spain':'España',
-  'uruguay':'Uruguay','saudiarabia':'Arabia Saudita','capeverde':'Cabo Verde',
-  'belgium':'Bélgica','egypt':'Egipto','iran':'Irán','newzealand':'Nueva Zelanda',
-  'france':'Francia','senegal':'Senegal','iraq':'Iraq','norway':'Noruega',
-  'argentina':'Argentina','austria':'Austria','algeria':'Argelia','jordan':'Jordania',
-  'portugal':'Portugal','drcongo':'DR Congo','colombia':'Colombia',
-  'uzbekistan':'Uzbekistán','england':'Inglaterra','croatia':'Croacia',
-  'ghana':'Ghana','panama':'Panamá',
-};
-function apiNameToOurs(apiName){
-  const key=normalize(apiName);
-  return API_NAME_MAP[key]||null;
-}
-
 async function fetchAndSaveResults(){
   document.getElementById('btnFetchAPI').textContent='🔄 Consultando API...';
   showMsg('apiMsg','Consultando football-data.org...',true);
@@ -754,10 +737,8 @@ async function fetchAndSaveResults(){
       const aGoals=m.score?.regularTime?.away ?? m.score?.fullTime?.away;
       if(hGoals===null||hGoals===undefined||aGoals===null||aGoals===undefined) return;
       // Find matching partido
-      const mappedHome=apiNameToOurs(homeName)||homeName;
-      const mappedAway=apiNameToOurs(awayName)||awayName;
       const partido=PARTIDOS.find(p=>
-        normalize(p.home.n)===normalize(mappedHome)&&normalize(p.away.n)===normalize(mappedAway)
+        normalize(p.home.n)===normalize(homeName)&&normalize(p.away.n)===normalize(awayName)
       );
       if(partido) resRows.push({match_key:partido.key,goles_local:hGoals,goles_visitante:aGoals,updated_at:new Date()});
     });
@@ -897,6 +878,28 @@ function renderAdminPanel(){
     const s1=document.getElementById(`cl_${gId}_1`),s2=document.getElementById(`cl_${gId}_2`);
     if(s1&&c[0])s1.value=c[0];if(s2&&c[1])s2.value=c[1];
   });
+
+  // Render resultados manuales por fecha y grupo
+  const byDate={};
+  PARTIDOS.forEach(p=>{if(!byDate[p.fecha])byDate[p.fecha]=[];byDate[p.fecha].push(p);});
+  let resHtml='';
+  Object.keys(byDate).forEach(fecha=>{
+    resHtml+=`<div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)">📅 ${fecha}</div>`;
+    byDate[fecha].forEach(p=>{
+      const r=results[p.key]||[];
+      const hv=r[0]!=null?r[0]:'', av=r[1]!=null?r[1]:'';
+      resHtml+=`<div style="display:grid;grid-template-columns:1fr 32px 16px 32px 1fr;gap:4px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+        <div style="font-size:11px;text-align:right;color:var(--text)">${p.home.f} ${p.home.n}</div>
+        <input type="number" min="0" max="20" id="ra_${p.key}_h" value="${hv}" placeholder="—"
+          style="text-align:center;font-size:13px;font-weight:600;padding:5px 2px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:var(--dark4);color:var(--text);width:100%">
+        <div style="text-align:center;font-size:11px;color:var(--muted)">-</div>
+        <input type="number" min="0" max="20" id="ra_${p.key}_a" value="${av}" placeholder="—"
+          style="text-align:center;font-size:13px;font-weight:600;padding:5px 2px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:var(--dark4);color:var(--text);width:100%">
+        <div style="font-size:11px;text-align:left;color:var(--text)">${p.away.n} ${p.away.f}</div>
+      </div>`;
+    });
+  });
+  document.getElementById('resultadosAdmin').innerHTML=resHtml;
 }
 
 async function saveBonusResults(){
@@ -905,6 +908,22 @@ async function saveBonusResults(){
   const r=await sb.from('bonus_reales').update(bonusUpd).gte('id','00000000-0000-0000-0000-000000000000');
   r.error?showMsg('adminMsg','❌ Error bonus.',false):(await loadResults(),showMsg('adminMsg','✅ Bonus guardados.'));
 }
+async function saveResultadosAdmin(){
+  const resRows=[];
+  PARTIDOS.forEach(p=>{
+    const hEl=document.getElementById(`ra_${p.key}_h`);
+    const aEl=document.getElementById(`ra_${p.key}_a`);
+    if(!hEl||!aEl)return;
+    const hv=hEl.value!==''?+hEl.value:null;
+    const av=aEl.value!==''?+aEl.value:null;
+    if(hv!==null&&av!==null)
+      resRows.push({match_key:p.key,goles_local:hv,goles_visitante:av,updated_at:new Date()});
+  });
+  if(!resRows.length){showMsg('adminMsg','⚠️ No hay resultados para guardar.',false);return;}
+  const r=await sb.from('resultados').upsert(resRows,{onConflict:'match_key'});
+  r.error?showMsg('adminMsg','❌ Error guardando resultados.',false):(await loadResults(),showMsg('adminMsg',`✅ ${resRows.length} resultado(s) guardados.`));
+}
+
 async function saveClasifResults(){
   const clasifRows=[];
   GRUPOS_LIST.forEach(gId=>{
@@ -927,12 +946,9 @@ async function renderLB(){
       const matches=data.matches||[];
       const resRows=[];
       matches.forEach(m=>{
-        const hG=m.score?.regularTime?.home??m.score?.fullTime?.home;
-        const aG=m.score?.regularTime?.away??m.score?.fullTime?.away;
+        const hG=m.score?.fullTime?.home,aG=m.score?.fullTime?.away;
         if(hG===null||hG===undefined||aG===null||aG===undefined)return;
-        const mHome=apiNameToOurs(m.homeTeam?.name||'')||m.homeTeam?.name||'';
-        const mAway=apiNameToOurs(m.awayTeam?.name||'')||m.awayTeam?.name||'';
-        const partido=PARTIDOS.find(p=>normalize(p.home.n)===normalize(mHome)&&normalize(p.away.n)===normalize(mAway));
+        const partido=PARTIDOS.find(p=>normalize(p.home.n)===normalize(m.homeTeam?.name||'')&&normalize(p.away.n)===normalize(m.awayTeam?.name||''));
         if(partido)resRows.push({match_key:partido.key,goles_local:hG,goles_visitante:aG,updated_at:new Date()});
       });
       if(resRows.length){
