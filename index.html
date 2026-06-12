@@ -278,7 +278,7 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
           <button class="numpad-btn" onclick="pinPress('ok')" style="background:linear-gradient(135deg,var(--blue),#003fa6);color:#fff;border-color:transparent;font-size:13px">OK</button>
         </div>
         <div class="pin-error" id="pinError"></div>
-
+        <p style="font-size:11px;color:var(--muted);margin-top:12px">PIN por defecto: <strong style="color:var(--gold)">2026</strong></p>
       </div>
     </div>
     <div id="adminPanel" style="display:none">
@@ -355,7 +355,7 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
 const SUPABASE_URL='https://lnefvahjpfbtomupfgkd.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZWZ2YWhqcGZidG9tdXBmZ2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzMyNTUsImV4cCI6MjA5NTIwOTI1NX0.Prb2IP_Znj3m0PumoW6vIbDUpdEBM7i4Z8gq17HQ6fQ';
 const FOOTBALL_API_KEY='173de29b7acd450282d6cb39b9627468';
-const GRUPO_ID='Amigos';
+const GRUPO_ID='familia';
 const LOCK_HOURS=1; // horas antes de bloquear
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
@@ -456,13 +456,37 @@ const ALL_TEAMS=Object.values(EQUIPOS_POR_GRUPO).flat();
 let currentPlayer=null, results={}, clasifReal={}, bonusReal={};
 let ADMIN_PIN='2026', pinEntry='';
 let countdownTimers=[];
+let serverNow=new Date(); // se sincroniza con el servidor al hacer login
+let serverTimeOffset=0;  // diferencia ms entre servidor y dispositivo
+
+// ── SERVER TIME ──────────────────────────────────────────────
+async function syncServerTime(){
+  try{
+    const t0=Date.now();
+    // Hacemos una petición ligera a Supabase y leemos el header Date
+    const resp=await fetch(SUPABASE_URL+'/rest/v1/?apikey='+SUPABASE_KEY);
+    const t1=Date.now();
+    const dateHeader=resp.headers.get('date');
+    if(dateHeader){
+      const serverMs=new Date(dateHeader).getTime();
+      const localMs=Math.round((t0+t1)/2);
+      serverTimeOffset=serverMs-localMs;
+      console.log('Server time offset:',serverTimeOffset,'ms');
+    }
+  }catch(e){
+    serverTimeOffset=0;
+  }
+}
+function nowServer(){
+  return new Date(Date.now()+serverTimeOffset);
+}
 
 // ── HELPERS ───────────────────────────────────────────────────
 function isLocked(kickoff){
-  return new Date()-new Date(kickoff) > -LOCK_HOURS*3600*1000;
+  return nowServer()-new Date(kickoff) > -LOCK_HOURS*3600*1000;
 }
 function minsUntil(kickoff){
-  return (new Date(kickoff)-new Date())/60000;
+  return (new Date(kickoff)-nowServer())/60000;
 }
 function teamOptsHtml(sel=''){
   return '<option value="">— Sin definir —</option>'+
@@ -511,7 +535,9 @@ function loginSuccess(player){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('mainApp').style.display='block';
   document.getElementById('userNameBadge').textContent=player.nombre;
-  loadResults().then(()=>{renderPredMatches();startCountdowns();});
+  syncServerTime().then(()=>{
+    loadResults().then(()=>{renderPredMatches();startCountdowns();});
+  });
 }
 function logout(){
   currentPlayer=null;countdownTimers.forEach(clearInterval);countdownTimers=[];
@@ -757,14 +783,12 @@ function normalize(s){
 async function renderOthers(){
   document.getElementById('othersGrid').innerHTML='<div class="loading"><span class="spinner"></span>Cargando...</div>';
   const {data:players}=await sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at');
-  const playerIds2=(players||[]).map(p=>p.id);
-  const {data:allPreds}=playerIds2.length?await sb.from('pronosticos').select('*').in('participante_id',playerIds2):{data:[]};
+  const {data:allPreds}=await sb.from('pronosticos').select('*');
   const predMap={};(allPreds||[]).forEach(p=>{if(!predMap[p.participante_id])predMap[p.participante_id]={};predMap[p.participante_id][p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado};});
 
-  const lockedKeys=new Set(PARTIDOS.filter(p=>isLocked(p.kickoff)).map(p=>p.key));
   document.getElementById('othersGrid').innerHTML=(players||[]).map(p=>{
     const pm=predMap[p.id]||{};
-    const filled=Object.keys(pm).filter(k=>lockedKeys.has(k)).length;
+    const filled=Object.keys(pm).length;
     return `<div class="other-card${p.id===currentPlayer.id?' selected':''}" onclick="showOtherPreds('${p.id}','${p.nombre}')">
       <div class="other-name">${p.nombre}${p.id===currentPlayer.id?' 👤':''}</div>
       <div class="other-stats">${filled} pronóstico(s)</div>
@@ -816,15 +840,9 @@ async function showOtherPreds(playerId,playerName){
 
 function calcPtsMatch(pred,r){
   if(!r||!pred)return 0;
-  // Marcador exacto: ambos deben ser números (0 es válido)
-  const hasScore = pred.h!==null && pred.h!==undefined && pred.a!==null && pred.a!==undefined;
-  if(hasScore && pred.h===r[0] && pred.a===r[1]) return 3;
-  // Resultado (1X2): primero del marcador, luego del botón
-  const rS=Math.sign(r[0]-r[1]);
-  let pS=null;
-  if(hasScore) pS=Math.sign(pred.h-pred.a);
-  else if(pred.r) pS={'1':1,'X':0,'2':-1}[pred.r];
-  if(pS!==null && pS===rS) return 1;
+  if(pred.h!==null&&pred.h===r[0]&&pred.a===r[1])return 3;
+  const rS=Math.sign(r[0]-r[1]),pS=pred.r?({'1':1,'X':0,'2':-1}[pred.r]):(pred.h!==null?Math.sign(pred.h-pred.a):null);
+  if(pS!==null&&pS===rS)return 1;
   return 0;
 }
 
@@ -923,11 +941,10 @@ async function renderLB(){
     }
   }catch(e){document.getElementById('apiStatus').textContent='🤖 API';}
 
-  const {data:players}=await sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at');
-  const playerIds=(players||[]).map(p=>p.id);
-  const [{data:allPreds},{data:allBonus}]=await Promise.all([
-    playerIds.length?sb.from('pronosticos').select('*').in('participante_id',playerIds):Promise.resolve({data:[]}),
-    playerIds.length?sb.from('pronosticos_bonus').select('*').in('participante_id',playerIds):Promise.resolve({data:[]})
+  const [{data:players},{data:allPreds},{data:allBonus}]=await Promise.all([
+    sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at'),
+    sb.from('pronosticos').select('*'),
+    sb.from('pronosticos_bonus').select('*')
   ]);
   const predMap={};(allPreds||[]).forEach(p=>{if(!predMap[p.participante_id])predMap[p.participante_id]={};predMap[p.participante_id][p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado};});
   const bonusMap={};(allBonus||[]).forEach(b=>bonusMap[b.participante_id]=b);
