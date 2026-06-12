@@ -291,8 +291,6 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
           </div>
           <button class="btn primary" onclick="changePin()">Guardar</button>
         </div>
-        <button class="btn green full" onclick="fetchAndSaveResults()" id="btnFetchAPI" style="margin-top:0">🤖 Actualizar resultados desde API</button>
-        <div id="apiMsg" style="margin-top:8px"></div>
       </div>
       <div class="card">
         <div class="card-head">⭐ Bonus finales</div>
@@ -319,6 +317,12 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
           </select>
         </div>
         <button class="btn red-btn full" onclick="saveBonusResults()" style="margin-top:10px">💾 Guardar bonus</button>
+      </div>
+      <div class="card">
+        <div class="card-head">⚽ Resultados de partidos</div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Introduce el marcador final a 90 minutos de cada partido jugado.</p>
+        <div id="resultadosAdmin"></div>
+        <button class="btn red-btn full" onclick="saveResultadosAdmin()" style="margin-top:10px">💾 Guardar resultados</button>
       </div>
       <div class="card">
         <div class="card-head">🏅 Clasificados a octavos</div>
@@ -355,8 +359,8 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
 const SUPABASE_URL='https://lnefvahjpfbtomupfgkd.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZWZ2YWhqcGZidG9tdXBmZ2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzMyNTUsImV4cCI6MjA5NTIwOTI1NX0.Prb2IP_Znj3m0PumoW6vIbDUpdEBM7i4Z8gq17HQ6fQ';
 const FOOTBALL_API_KEY='173de29b7acd450282d6cb39b9627468';
-const GRUPO_ID='Amigos';
-const LOCK_HOURS=3; // horas antes de bloquear
+const GRUPO_ID='familia';
+const LOCK_HOURS=1; // horas antes de bloquear
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 // ── MATCH DATA (chronological order with kickoff times UTC) ──
@@ -456,7 +460,7 @@ const ALL_TEAMS=Object.values(EQUIPOS_POR_GRUPO).flat();
 let currentPlayer=null, results={}, clasifReal={}, bonusReal={};
 let ADMIN_PIN='2026', pinEntry='';
 let countdownTimers=[];
-let serverTimeOffset=0; // diferencia ms entre servidor y dispositivo
+let serverTimeOffset=0;
 
 // ── SERVER TIME ──────────────────────────────────────────────
 async function syncServerTime(){
@@ -464,11 +468,8 @@ async function syncServerTime(){
     const t0=Date.now();
     const resp=await fetch(SUPABASE_URL+'/rest/v1/?apikey='+SUPABASE_KEY);
     const t1=Date.now();
-    const dateHeader=resp.headers.get('date');
-    if(dateHeader){
-      const serverMs=new Date(dateHeader).getTime();
-      serverTimeOffset=serverMs-Math.round((t0+t1)/2);
-    }
+    const d=resp.headers.get('date');
+    if(d) serverTimeOffset=new Date(d).getTime()-Math.round((t0+t1)/2);
   }catch(e){ serverTimeOffset=0; }
 }
 function nowServer(){ return new Date(Date.now()+serverTimeOffset); }
@@ -725,52 +726,6 @@ async function loadResults(){
   bonusReal=bon||{};
 }
 
-// ── API FOOTBALL-DATA.ORG ─────────────────────────────────────
-async function fetchAndSaveResults(){
-  document.getElementById('btnFetchAPI').textContent='🔄 Consultando API...';
-  showMsg('apiMsg','Consultando football-data.org...',true);
-  try{
-    // FIFA World Cup 2026 competition code: WC (World Cup)
-    const resp=await fetch('https://api.football-data.org/v4/competitions/WC/matches?season=2026&status=FINISHED',{
-      headers:{'X-Auth-Token':FOOTBALL_API_KEY}
-    });
-    if(!resp.ok) throw new Error('HTTP '+resp.status);
-    const data=await resp.json();
-    const matches=data.matches||[];
-    if(!matches.length){showMsg('apiMsg','ℹ️ Aún no hay partidos finalizados en la API.',true);document.getElementById('btnFetchAPI').textContent='🤖 Actualizar desde API';return;}
-
-    const resRows=[];
-    matches.forEach(m=>{
-      // Match API team names to our keys
-      const homeName=m.homeTeam?.name||'';
-      const awayName=m.awayTeam?.name||'';
-      // Use regularTime (90min) if available, otherwise fullTime
-      const hGoals=m.score?.regularTime?.home ?? m.score?.fullTime?.home;
-      const aGoals=m.score?.regularTime?.away ?? m.score?.fullTime?.away;
-      if(hGoals===null||hGoals===undefined||aGoals===null||aGoals===undefined) return;
-      // Find matching partido
-      const partido=PARTIDOS.find(p=>
-        normalize(p.home.n)===normalize(homeName)&&normalize(p.away.n)===normalize(awayName)
-      );
-      if(partido) resRows.push({match_key:partido.key,goles_local:hGoals,goles_visitante:aGoals,updated_at:new Date()});
-    });
-    if(resRows.length){
-      await sb.from('resultados').upsert(resRows,{onConflict:'match_key'});
-      await loadResults();
-      showMsg('apiMsg',`✅ ${resRows.length} resultado(s) actualizados desde la API.`);
-    } else {
-      showMsg('apiMsg','ℹ️ No se encontraron coincidencias aún. La API se activará cuando empiecen los partidos.');
-    }
-  }catch(e){
-    showMsg('apiMsg','❌ Error API: '+e.message+'. Los resultados oficiales estarán disponibles desde el 11 de junio.',false);
-  }
-  document.getElementById('btnFetchAPI').textContent='🤖 Actualizar desde API';
-}
-
-function normalize(s){
-  return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/g,'');
-}
-
 // ── OTHERS VIEW ───────────────────────────────────────────────
 async function renderOthers(){
   document.getElementById('othersGrid').innerHTML='<div class="loading"><span class="spinner"></span>Cargando...</div>';
@@ -898,6 +853,28 @@ function renderAdminPanel(){
     const s1=document.getElementById(`cl_${gId}_1`),s2=document.getElementById(`cl_${gId}_2`);
     if(s1&&c[0])s1.value=c[0];if(s2&&c[1])s2.value=c[1];
   });
+
+  // Render resultados manuales agrupados por fecha
+  const byDate={};
+  PARTIDOS.forEach(p=>{if(!byDate[p.fecha])byDate[p.fecha]=[];byDate[p.fecha].push(p);});
+  let resHtml='';
+  Object.keys(byDate).forEach(fecha=>{
+    resHtml+=`<div style="font-size:11px;font-weight:600;color:var(--gold);letter-spacing:1px;text-transform:uppercase;margin:12px 0 6px;padding-bottom:4px;border-bottom:1px solid var(--border)">📅 ${fecha}</div>`;
+    byDate[fecha].forEach(p=>{
+      const r=results[p.key]||[];
+      const hv=r[0]!=null?r[0]:'', av=r[1]!=null?r[1]:'';
+      resHtml+=`<div style="display:grid;grid-template-columns:1fr 32px 16px 32px 1fr;gap:4px;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+        <div style="font-size:11px;text-align:right;color:var(--text)">${p.home.f} ${p.home.n}</div>
+        <input type="number" min="0" max="20" id="ra_${p.key}_h" value="${hv}" placeholder="—"
+          style="text-align:center;font-size:13px;font-weight:600;padding:5px 2px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:var(--dark4);color:var(--text);width:100%">
+        <div style="text-align:center;font-size:11px;color:var(--muted)">-</div>
+        <input type="number" min="0" max="20" id="ra_${p.key}_a" value="${av}" placeholder="—"
+          style="text-align:center;font-size:13px;font-weight:600;padding:5px 2px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:var(--dark4);color:var(--text);width:100%">
+        <div style="font-size:11px;text-align:left;color:var(--text)">${p.away.n} ${p.away.f}</div>
+      </div>`;
+    });
+  });
+  document.getElementById('resultadosAdmin').innerHTML=resHtml;
 }
 
 async function saveBonusResults(){
@@ -906,6 +883,22 @@ async function saveBonusResults(){
   const r=await sb.from('bonus_reales').update(bonusUpd).gte('id','00000000-0000-0000-0000-000000000000');
   r.error?showMsg('adminMsg','❌ Error bonus.',false):(await loadResults(),showMsg('adminMsg','✅ Bonus guardados.'));
 }
+async function saveResultadosAdmin(){
+  const resRows=[];
+  PARTIDOS.forEach(p=>{
+    const hEl=document.getElementById(`ra_${p.key}_h`);
+    const aEl=document.getElementById(`ra_${p.key}_a`);
+    if(!hEl||!aEl)return;
+    const hv=hEl.value!==''?+hEl.value:null;
+    const av=aEl.value!==''?+aEl.value:null;
+    if(hv!==null&&av!==null)
+      resRows.push({match_key:p.key,goles_local:hv,goles_visitante:av,updated_at:new Date()});
+  });
+  if(!resRows.length){showMsg('adminMsg','⚠️ No hay resultados para guardar.',false);return;}
+  const r=await sb.from('resultados').upsert(resRows,{onConflict:'match_key'});
+  r.error?showMsg('adminMsg','❌ Error guardando resultados.',false):(await loadResults(),showMsg('adminMsg',`✅ ${resRows.length} resultado(s) guardados.`));
+}
+
 async function saveClasifResults(){
   const clasifRows=[];
   GRUPOS_LIST.forEach(gId=>{
@@ -920,80 +913,9 @@ async function saveClasifResults(){
 async function renderLB(){
   document.getElementById('lbContainer').innerHTML='<div class="loading"><span class="spinner"></span>Calculando...</div>';
   await loadResults();
-  // Try auto-fetch from API (silent)
-  try{
-    const resp=await fetch('https://api.football-data.org/v4/competitions/WC/matches?season=2026&status=FINISHED',{headers:{'X-Auth-Token':FOOTBALL_API_KEY}});
-    if(resp.ok){
-      const data=await resp.json();
-      const matches=data.matches||[];
-      const resRows=[];
-      matches.forEach(m=>{
-        const hG=m.score?.fullTime?.home,aG=m.score?.fullTime?.away;
-        if(hG===null||hG===undefined||aG===null||aG===undefined)return;
-        const partido=PARTIDOS.find(p=>normalize(p.home.n)===normalize(m.homeTeam?.name||'')&&normalize(p.away.n)===normalize(m.awayTeam?.name||''));
-        if(partido)resRows.push({match_key:partido.key,goles_local:hG,goles_visitante:aG,updated_at:new Date()});
-      });
-      if(resRows.length){
-        await sb.from('resultados').upsert(resRows,{onConflict:'match_key'});
-        await loadResults();
-        document.getElementById('apiStatus').textContent='🤖 Auto ✓';
-      }
-    }
-  }catch(e){document.getElementById('apiStatus').textContent='🤖 API';}
-
-  const {data:players}=await sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at');
+    const {data:players}=await sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at');
   const playerIds=(players||[]).map(p=>p.id);
-  const [{data:allPreds},{data:allBonus}]=await Promise.all([
-    playerIds.length?sb.from('pronosticos').select('*').in('participante_id',playerIds):Promise.resolve({data:[]}),
-    playerIds.length?sb.from('pronosticos_bonus').select('*').in('participante_id',playerIds):Promise.resolve({data:[]})
-  ]);
-  const predMap={};(allPreds||[]).forEach(p=>{if(!predMap[p.participante_id])predMap[p.participante_id]={};predMap[p.participante_id][p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado};});
-  const bonusMap={};(allBonus||[]).forEach(b=>bonusMap[b.participante_id]=b);
-  const scores=(players||[]).map(p=>{
-    let pts=0,exact=0,ptsB=0;
-    const pm=predMap[p.id]||{};
-    PARTIDOS.forEach(m=>{
-      const r=results[m.key],pr=pm[m.key];if(!r||!pr)return;
-      const p2=calcPtsMatch(pr,r);pts+=p2;if(p2===3)exact++;
-    });
-    const bm=bonusMap[p.id]||{};
-    if(bonusReal.campeon&&bm.campeon===bonusReal.campeon){pts+=5;ptsB+=5;}
-    if(bonusReal.subcamp&&bm.subcamp===bonusReal.subcamp){pts+=2;ptsB+=2;}
-    if(bonusReal.goleador&&bm.goleador===bonusReal.goleador){pts+=3;ptsB+=3;}
-    if(bonusReal.mvp&&bm.mvp===bonusReal.mvp){pts+=2;ptsB+=2;}
-    return{name:p.nombre,pts,exact,ptsB,isMe:p.id===currentPlayer.id};
-  }).sort((a,b)=>b.pts-a.pts||b.exact-a.exact);
-
-  const el=document.getElementById('lbContainer');
-  if(!scores.length){el.innerHTML='<p style="font-size:13px;color:var(--muted)">Sin participantes.</p>';return;}
-  el.innerHTML=`<table class="lb-table"><thead><tr><th>#</th><th>Jugador</th><th>Pts</th><th>⚽</th><th>⭐</th></tr></thead><tbody>
-    ${scores.map((s,i)=>`<tr${s.isMe?' style="background:rgba(212,160,23,.06)"':''}>
-      <td><span class="medal ${['m1','m2','m3'][i]||'mn'}">${['🥇','🥈','🥉'][i]||i+1}</span></td>
-      <td style="font-weight:500">${s.name}${s.isMe?' 👤':''}</td>
-      <td><span class="pts-pill${i===0?' gold':''}">${s.pts}</span></td>
-      <td>${s.exact}</td><td>${s.ptsB}</td>
-    </tr>`).join('')}</tbody></table>`;
-
-  const played=PARTIDOS.filter(p=>results[p.key]);
-  if(played.length){
-    document.getElementById('resCard').style.display='block';
-    document.getElementById('resDisplay').innerHTML=
-      `<p style="font-size:12px;color:var(--muted);margin-bottom:10px">${played.length} partido(s) con resultado oficial</p>`+
-      played.slice(-10).map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
-        <span>${p.home.f} ${p.home.n}</span>
-        <span class="score-real">${results[p.key][0]} — ${results[p.key][1]}</span>
-        <span>${p.away.n} ${p.away.f}</span>
-      </div>`).join('');
-  }
-}
-
-// ── EMAIL ─────────────────────────────────────────────────────
-async function genEmail(){
-  await loadResults();
-  const [{data:players},{data:allPreds}]=await Promise.all([
-    sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at'),
-    sb.from('pronosticos').select('*')
-  ]);
+  const {data:allPreds}=playerIds.length?await sb.from('pronosticos').select('*').in('participante_id',playerIds):{data:[]};
   const predMap={};(allPreds||[]).forEach(p=>{if(!predMap[p.participante_id])predMap[p.participante_id]={};predMap[p.participante_id][p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado};});
   const scores=(players||[]).map(p=>{
     let pts=0,exact=0;const pm=predMap[p.id]||{};
