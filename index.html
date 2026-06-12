@@ -359,7 +359,7 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
 const SUPABASE_URL='https://lnefvahjpfbtomupfgkd.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZWZ2YWhqcGZidG9tdXBmZ2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzMyNTUsImV4cCI6MjA5NTIwOTI1NX0.Prb2IP_Znj3m0PumoW6vIbDUpdEBM7i4Z8gq17HQ6fQ';
 const FOOTBALL_API_KEY='173de29b7acd450282d6cb39b9627468';
-const GRUPO_ID='Amigos';
+const GRUPO_ID='familia';
 const LOCK_HOURS=1; // horas antes de bloquear
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
@@ -853,8 +853,6 @@ function renderAdminPanel(){
     const s1=document.getElementById(`cl_${gId}_1`),s2=document.getElementById(`cl_${gId}_2`);
     if(s1&&c[0])s1.value=c[0];if(s2&&c[1])s2.value=c[1];
   });
-
-  // Render resultados manuales agrupados por fecha
   const byDate={};
   PARTIDOS.forEach(p=>{if(!byDate[p.fecha])byDate[p.fecha]=[];byDate[p.fecha].push(p);});
   let resHtml='';
@@ -912,10 +910,64 @@ async function saveClasifResults(){
 // ── LEADERBOARD ───────────────────────────────────────────────
 async function renderLB(){
   document.getElementById('lbContainer').innerHTML='<div class="loading"><span class="spinner"></span>Calculando...</div>';
-  await loadResults();
-    const {data:players}=await sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at');
+  // Todas las queries en paralelo — sin API externa
+  const [{data:resData},{data:players}]=await Promise.all([
+    sb.from('resultados').select('*'),
+    sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at')
+  ]);
+  results={};(resData||[]).forEach(r=>results[r.match_key]=[r.goles_local,r.goles_visitante]);
   const playerIds=(players||[]).map(p=>p.id);
-  const {data:allPreds}=playerIds.length?await sb.from('pronosticos').select('*').in('participante_id',playerIds):{data:[]};
+  const [{data:allPreds},{data:allBonus}]=await Promise.all([
+    playerIds.length?sb.from('pronosticos').select('*').in('participante_id',playerIds):Promise.resolve({data:[]}),
+    playerIds.length?sb.from('pronosticos_bonus').select('*').in('participante_id',playerIds):Promise.resolve({data:[]})
+  ]);
+  const predMap={};(allPreds||[]).forEach(p=>{if(!predMap[p.participante_id])predMap[p.participante_id]={};predMap[p.participante_id][p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado};});
+  const bonusMap={};(allBonus||[]).forEach(b=>bonusMap[b.participante_id]=b);
+  const scores=(players||[]).map(p=>{
+    let pts=0,exact=0,ptsB=0;
+    const pm=predMap[p.id]||{};
+    PARTIDOS.forEach(m=>{
+      const r=results[m.key],pr=pm[m.key];if(!r||!pr)return;
+      const p2=calcPtsMatch(pr,r);pts+=p2;if(p2===3)exact++;
+    });
+    const bm=bonusMap[p.id]||{};
+    if(bonusReal.campeon&&bm.campeon===bonusReal.campeon){pts+=5;ptsB+=5;}
+    if(bonusReal.subcamp&&bm.subcamp===bonusReal.subcamp){pts+=2;ptsB+=2;}
+    if(bonusReal.goleador&&bm.goleador===bonusReal.goleador){pts+=3;ptsB+=3;}
+    if(bonusReal.mvp&&bm.mvp===bonusReal.mvp){pts+=2;ptsB+=2;}
+    return{name:p.nombre,pts,exact,ptsB,isMe:p.id===currentPlayer.id};
+  }).sort((a,b)=>b.pts-a.pts||b.exact-a.exact);
+
+  const el=document.getElementById('lbContainer');
+  if(!scores.length){el.innerHTML='<p style="font-size:13px;color:var(--muted)">Sin participantes.</p>';return;}
+  el.innerHTML=`<table class="lb-table"><thead><tr><th>#</th><th>Jugador</th><th>Pts</th><th>⚽</th><th>⭐</th></tr></thead><tbody>
+    ${scores.map((s,i)=>`<tr${s.isMe?' style="background:rgba(212,160,23,.06)"':''}>
+      <td><span class="medal ${['m1','m2','m3'][i]||'mn'}">${['🥇','🥈','🥉'][i]||i+1}</span></td>
+      <td style="font-weight:500">${s.name}${s.isMe?' 👤':''}</td>
+      <td><span class="pts-pill${i===0?' gold':''}">${s.pts}</span></td>
+      <td>${s.exact}</td><td>${s.ptsB}</td>
+    </tr>`).join('')}</tbody></table>`;
+
+  const played=PARTIDOS.filter(p=>results[p.key]);
+  if(played.length){
+    document.getElementById('resCard').style.display='block';
+    document.getElementById('resDisplay').innerHTML=
+      `<p style="font-size:12px;color:var(--muted);margin-bottom:10px">${played.length} partido(s) con resultado oficial</p>`+
+      played.slice(-10).map(p=>`<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
+        <span>${p.home.f} ${p.home.n}</span>
+        <span class="score-real">${results[p.key][0]} — ${results[p.key][1]}</span>
+        <span>${p.away.n} ${p.away.f}</span>
+      </div>`).join('');
+  }
+}
+
+// ── EMAIL ─────────────────────────────────────────────────────
+async function genEmail(){
+  await loadResults();
+  const [{data:players},{data:allPreds}]=await Promise.all([
+    sb.from('participantes').select('*').eq('grupo',GRUPO_ID).order('created_at'),
+    sb.from('pronosticos').select('*')
+  ]);
   const predMap={};(allPreds||[]).forEach(p=>{if(!predMap[p.participante_id])predMap[p.participante_id]={};predMap[p.participante_id][p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado};});
   const scores=(players||[]).map(p=>{
     let pts=0,exact=0;const pm=predMap[p.id]||{};
