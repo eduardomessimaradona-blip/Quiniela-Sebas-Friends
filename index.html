@@ -359,8 +359,8 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
 const SUPABASE_URL='https://lnefvahjpfbtomupfgkd.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZWZ2YWhqcGZidG9tdXBmZ2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzMyNTUsImV4cCI6MjA5NTIwOTI1NX0.Prb2IP_Znj3m0PumoW6vIbDUpdEBM7i4Z8gq17HQ6fQ';
 const FOOTBALL_API_KEY='173de29b7acd450282d6cb39b9627468';
-const GRUPO_ID='Amigos';
-const LOCK_HOURS= 3 ; // horas antes de bloquear
+const GRUPO_ID='FOENER';
+const LOCK_HOURS= 3 ; // horas antes de bloquearar
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
 // ── MATCH DATA (chronological order with kickoff times UTC) ──
@@ -559,7 +559,12 @@ function startCountdowns(){
     if(!el)return;
     const timer=setInterval(()=>{
       const mins=minsUntil(p.kickoff);
-      if(mins<=0){clearInterval(timer);el.innerHTML='<span class="locked-badge">🔒 Cerrado</span>';return;}
+      if(mins<=0){
+        clearInterval(timer);
+        // Recargar pronósticos para deshabilitar inputs del partido
+        renderPredMatches();
+        return;
+      }
       if(mins<=LOCK_HOURS*60){
         const h=Math.floor(mins/60),m=Math.floor(mins%60),s=Math.floor((mins*60)%60);
         const cls=mins<30?'countdown':'countdown soon';
