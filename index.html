@@ -359,7 +359,7 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
 const SUPABASE_URL='https://lnefvahjpfbtomupfgkd.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZWZ2YWhqcGZidG9tdXBmZ2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzMyNTUsImV4cCI6MjA5NTIwOTI1NX0.Prb2IP_Znj3m0PumoW6vIbDUpdEBM7i4Z8gq17HQ6fQ';
 const FOOTBALL_API_KEY='173de29b7acd450282d6cb39b9627468';
-const GRUPO_ID='Amigos';
+const GRUPO_ID='FOENER';
 const LOCK_HOURS= 3 ; // horas antes de bloquear
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
@@ -380,18 +380,18 @@ const PARTIDOS=[
   {key:'m12',fecha:'15 Jun',kickoff:'2026-06-15T16:00:00Z',grupo:'H',home:{n:'España',f:'🇪🇸'},away:{n:'Cabo Verde',f:'🇨🇻'}},
   {key:'m13',fecha:'15 Jun',kickoff:'2026-06-15T19:00:00Z',grupo:'G',home:{n:'Bélgica',f:'🇧🇪'},away:{n:'Egipto',f:'🇪🇬'}},
   {key:'m14',fecha:'15 Jun',kickoff:'2026-06-15T22:00:00Z',grupo:'H',home:{n:'Arabia Saudita',f:'🇸🇦'},away:{n:'Uruguay',f:'🇺🇾'}},
-  {key:'m15',fecha:'15 Jun',kickoff:'2026-06-19T01:00:00Z',grupo:'G',home:{n:'Irán',f:'🇮🇷'},away:{n:'Nueva Zelanda',f:'🇳🇿'}},
-  {key:'m16',fecha:'16 Jun',kickoff:'2026-06-19T19:00:00Z',grupo:'I',home:{n:'Francia',f:'🇫🇷'},away:{n:'Senegal',f:'🇸🇳'}},
-  {key:'m17',fecha:'16 Jun',kickoff:'2026-06-19T22:00:00Z',grupo:'I',home:{n:'Iraq',f:'🇮🇶'},away:{n:'Noruega',f:'🇳🇴'}},
-  {key:'m18',fecha:'16 Jun',kickoff:'2026-06-19T01:00:00Z',grupo:'J',home:{n:'Argentina',f:'🇦🇷'},away:{n:'Argelia',f:'🇩🇿'}},
-  {key:'m19',fecha:'16 Jun',kickoff:'2026-06-19T01:00:00Z',grupo:'J',home:{n:'Austria',f:'🇦🇹'},away:{n:'Jordania',f:'🇯🇴'}},
-  {key:'m20',fecha:'17 Jun',kickoff:'2026-06-19T17:00:00Z',grupo:'K',home:{n:'Portugal',f:'🇵🇹'},away:{n:'DR Congo',f:'🇨🇩'}},
-  {key:'m21',fecha:'17 Jun',kickoff:'2026-06-19T20:00:00Z',grupo:'L',home:{n:'Inglaterra',f:'\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F'},away:{n:'Croacia',f:'🇭🇷'}},
-  {key:'m22',fecha:'17 Jun',kickoff:'2026-06-19T23:00:00Z',grupo:'L',home:{n:'Ghana',f:'🇬🇭'},away:{n:'Panamá',f:'🇵🇦'}},
-  {key:'m23',fecha:'17 Jun',kickoff:'2026-06-19T02:00:00Z',grupo:'K',home:{n:'Uzbekistán',f:'🇺🇿'},away:{n:'Colombia',f:'🇨🇴'}},
-  {key:'m24',fecha:'18 Jun',kickoff:'2026-06-19T16:00:00Z',grupo:'A',home:{n:'Sudáfrica',f:'🇿🇦'},away:{n:'Rep. Checa',f:'🇨🇿'}},
-  {key:'m25',fecha:'18 Jun',kickoff:'2026-06-19T19:00:00Z',grupo:'B',home:{n:'Suiza',f:'🇨🇭'},away:{n:'Bosnia-Herz.',f:'🇧🇦'}},
-  {key:'m26',fecha:'18 Jun',kickoff:'2026-06-19T22:00:00Z',grupo:'B',home:{n:'Canadá',f:'🇨🇦'},away:{n:'Qatar',f:'🇶🇦'}},
+  {key:'m15',fecha:'15 Jun',kickoff:'2026-06-16T01:00:00Z',grupo:'G',home:{n:'Irán',f:'🇮🇷'},away:{n:'Nueva Zelanda',f:'🇳🇿'}},
+  {key:'m16',fecha:'16 Jun',kickoff:'2026-06-16T19:00:00Z',grupo:'I',home:{n:'Francia',f:'🇫🇷'},away:{n:'Senegal',f:'🇸🇳'}},
+  {key:'m17',fecha:'16 Jun',kickoff:'2026-06-16T22:00:00Z',grupo:'I',home:{n:'Iraq',f:'🇮🇶'},away:{n:'Noruega',f:'🇳🇴'}},
+  {key:'m18',fecha:'16 Jun',kickoff:'2026-06-17T01:00:00Z',grupo:'J',home:{n:'Argentina',f:'🇦🇷'},away:{n:'Argelia',f:'🇩🇿'}},
+  {key:'m19',fecha:'16 Jun',kickoff:'2026-06-17T01:00:00Z',grupo:'J',home:{n:'Austria',f:'🇦🇹'},away:{n:'Jordania',f:'🇯🇴'}},
+  {key:'m20',fecha:'17 Jun',kickoff:'2026-06-17T17:00:00Z',grupo:'K',home:{n:'Portugal',f:'🇵🇹'},away:{n:'DR Congo',f:'🇨🇩'}},
+  {key:'m21',fecha:'17 Jun',kickoff:'2026-06-17T20:00:00Z',grupo:'L',home:{n:'Inglaterra',f:'\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F'},away:{n:'Croacia',f:'🇭🇷'}},
+  {key:'m22',fecha:'17 Jun',kickoff:'2026-06-17T23:00:00Z',grupo:'L',home:{n:'Ghana',f:'🇬🇭'},away:{n:'Panamá',f:'🇵🇦'}},
+  {key:'m23',fecha:'17 Jun',kickoff:'2026-06-18T02:00:00Z',grupo:'K',home:{n:'Uzbekistán',f:'🇺🇿'},away:{n:'Colombia',f:'🇨🇴'}},
+  {key:'m24',fecha:'18 Jun',kickoff:'2026-06-18T16:00:00Z',grupo:'A',home:{n:'Sudáfrica',f:'🇿🇦'},away:{n:'Rep. Checa',f:'🇨🇿'}},
+  {key:'m25',fecha:'18 Jun',kickoff:'2026-06-18T19:00:00Z',grupo:'B',home:{n:'Suiza',f:'🇨🇭'},away:{n:'Bosnia-Herz.',f:'🇧🇦'}},
+  {key:'m26',fecha:'18 Jun',kickoff:'2026-06-18T22:00:00Z',grupo:'B',home:{n:'Canadá',f:'🇨🇦'},away:{n:'Qatar',f:'🇶🇦'}},
   {key:'m27',fecha:'18 Jun',kickoff:'2026-06-19T01:00:00Z',grupo:'A',home:{n:'México',f:'🇲🇽'},away:{n:'Corea del Sur',f:'🇰🇷'}},
   {key:'m28',fecha:'19 Jun',kickoff:'2026-06-19T22:00:00Z',grupo:'C',home:{n:'Escocia',f:'\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74\uDB40\uDC7F'},away:{n:'Marruecos',f:'🇲🇦'}},
   {key:'m29',fecha:'19 Jun',kickoff:'2026-06-19T19:00:00Z',grupo:'D',home:{n:'USA',f:'🇺🇸'},away:{n:'Australia',f:'🇦🇺'}},
