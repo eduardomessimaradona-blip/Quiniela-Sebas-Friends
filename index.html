@@ -388,7 +388,7 @@ header p{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:upp
 const SUPABASE_URL='https://lnefvahjpfbtomupfgkd.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZWZ2YWhqcGZidG9tdXBmZ2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzMyNTUsImV4cCI6MjA5NTIwOTI1NX0.Prb2IP_Znj3m0PumoW6vIbDUpdEBM7i4Z8gq17HQ6fQ';
 const FOOTBALL_API_KEY='173de29b7acd450282d6cb39b9627468';
-const GRUPO_ID='Amigos';
+const GRUPO_ID='FOENER';
 const LOCK_HOURS= 3 ; // horas antes de bloquear fase de grupos
 const LOCK_HOURS_KO= 1 ; // horas antes de bloquear fase eliminatoria
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
@@ -1071,7 +1071,7 @@ async function saveKONames(){
     if(!hVal&&!aVal)return;
     const [hName,hFlag]=(hVal||'').split('||');
     const [aName,aFlag]=(aVal||'').split('||');
-    rows.push({key:p.key,grupo_id:GRUPO_ID,fase:p.fase,
+    rows.push({key:p.key,fase:p.fase,
       home_name:hName||p.home_name, home_flag:hFlag||p.home_flag,
       away_name:aName||p.away_name, away_flag:aFlag||p.away_flag,
       kickoff:p.kickoff});
@@ -1146,11 +1146,11 @@ async function inferNextRound(){
     const nextP=pMap[flow.next];
     if(!nextP)return;
     if(flow.side==='home'){
-      overrides.push({key:flow.next,grupo_id:GRUPO_ID,fase:nextP.fase,
+      overrides.push({key:flow.next,fase:nextP.fase,
         home_name:winner.name,home_flag:winner.flag,
         away_name:nextP.away_name,away_flag:nextP.away_flag,kickoff:nextP.kickoff});
     } else {
-      overrides.push({key:flow.next,grupo_id:GRUPO_ID,fase:nextP.fase,
+      overrides.push({key:flow.next,fase:nextP.fase,
         home_name:nextP.home_name,home_flag:nextP.home_flag,
         away_name:winner.name,away_flag:winner.flag,kickoff:nextP.kickoff});
     }
@@ -1162,11 +1162,11 @@ async function inferNextRound(){
         ? {name:src.away_name,flag:src.away_flag}
         : {name:src.home_name,flag:src.home_flag};
       if(flow.loserSide==='home'){
-        overrides.push({key:flow.loser,grupo_id:GRUPO_ID,fase:loserP.fase,
+        overrides.push({key:flow.loser,fase:loserP.fase,
           home_name:loser.name,home_flag:loser.flag,
           away_name:loserP.away_name,away_flag:loserP.away_flag,kickoff:loserP.kickoff});
       } else {
-        overrides.push({key:flow.loser,grupo_id:GRUPO_ID,fase:loserP.fase,
+        overrides.push({key:flow.loser,fase:loserP.fase,
           home_name:loserP.home_name,home_flag:loserP.home_flag,
           away_name:loser.name,away_flag:loser.flag,kickoff:loserP.kickoff});
       }
@@ -1368,7 +1368,7 @@ async function loadKOData(){
   try{
     // koPartidos = bracket estático + nombres actualizados desde DB
     const [{data:overrides,error:e1},{data:res,error:e2}]=await Promise.all([
-      sb.from('partidos_eliminatoria').select('*').eq('grupo_id',GRUPO_ID),
+      sb.from('partidos_eliminatoria').select('*'),
       sb.from('resultados_eliminatoria').select('*')
     ]);
     if(e1||e2){koPartidos=KO_BRACKET;koResults={};
