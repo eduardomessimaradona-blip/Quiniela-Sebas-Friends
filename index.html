@@ -830,6 +830,48 @@ async function showOtherPreds(playerId,playerName){
     });
   });
   html+='</div>';
+
+  // ── Clasificados inferidos por grupo ──────────────────────
+  const standing=calcClasifByUser(predMap);
+  html+=`<div class="card" style="margin-top:10px">
+    <div class="card-head">🏅 Clasificados según sus pronósticos</div>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:12px">Calculado con criterios FIFA: puntos → diferencia de goles → goles a favor</p>`;
+
+  GRUPOS_LIST.forEach(gId=>{
+    const tabla=standing[gId]||[];
+    // Solo mostrar grupos donde el usuario ha pronosticado al menos 1 partido
+    const hasAnyPred=PARTIDOS.filter(p=>p.grupo===gId).some(p=>predMap[p.key]?.h!=null||predMap[p.key]?.a!=null);
+    if(!hasAnyPred)return;
+
+    const real=clasifReal[gId]||[];
+    html+=`<div style="margin-bottom:10px">
+      <div class="group-header" style="margin-bottom:6px">
+        <span class="group-badge">Grupo ${gId}</span>
+        <span style="font-size:13px">${EQUIPOS_POR_GRUPO[gId].map(e=>e.f).join('')}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px">`;
+
+    [0,1,2].forEach(pos=>{
+      const eq=tabla[pos];
+      if(!eq){html+=`<div class="clasif-card"><div class="clasif-lbl">${['1º','2º','3º'][pos]}</div><span style="color:var(--muted);font-size:12px">—</span></div>`;return;}
+      const realName=pos===0?real[0]:pos===1?real[1]:null;
+      const isThird=pos===2;
+      const isCorrect=realName&&eq.n===realName;
+      const isCorrectThird=isThird&&tercerosMejores.includes(eq.n);
+      const borderColor=isCorrect||isCorrectThird?'rgba(0,200,100,.4)':realName?'rgba(200,16,46,.3)':'var(--border)';
+      html+=`<div class="clasif-card" style="border-color:${borderColor}">
+        <div class="clasif-lbl">${['1º','2º','3º'][pos]}${isCorrect||isCorrectThird?' ✅':realName?' ❌':''}</div>
+        <div style="font-size:12px;font-weight:500">${EQUIPOS_POR_GRUPO[gId].find(e=>e.n===eq.n)?.f||''} ${eq.n}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${eq.pts}pts · ${eq.dg>=0?'+':''}${eq.dg}dg · ${eq.gf}gf</div>
+      </div>`;
+    });
+
+    html+=`</div></div>`;
+  });
+
+  html+=`<p style="font-size:10px;color:var(--muted);margin-top:8px">✅ Acierto confirmado · ❌ Diferente al resultado real · Sin icono = resultado pendiente</p>`;
+  html+=`</div>`;
+
   document.getElementById('othersMatchView').innerHTML=html;
 }
 
