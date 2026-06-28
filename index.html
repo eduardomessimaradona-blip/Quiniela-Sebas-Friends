@@ -871,6 +871,57 @@ async function showOtherPreds(playerId,playerName){
   });
   html+='</div></div>'; // close pts-collapse-body + card
 
+  // ── Pronósticos eliminatoria ───────────────────────────────
+  const {data:koPreds}=await sb.from('pronosticos_eliminatoria').select('*').eq('participante_id',playerId);
+  const koPredMap={};(koPreds||[]).forEach(p=>koPredMap[p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado});
+
+  const lockedKO=koPartidos.filter(p=>isLocked(p.kickoff,LOCK_HOURS_KO));
+  if(lockedKO.length){
+    const byFaseKO={};
+    lockedKO.forEach(p=>{if(!byFaseKO[p.fase])byFaseKO[p.fase]=[];byFaseKO[p.fase].push(p);});
+    const faseOrderKO=['Dieciseisavos','Octavos','Cuartos','Semis','Tercer puesto','Final'];
+
+    html+=`<div class="card" style="margin-top:10px">
+      <div class="card-head pts-collapse" onclick="toggleSection(this)">
+        🏆 Eliminatoria — Pronósticos de ${playerName} <span class="collapse-icon open">▼</span>
+      </div>
+      <div class="pts-collapse-body open">`;
+
+    faseOrderKO.forEach(fase=>{
+      if(!byFaseKO[fase])return;
+      const faseLabel=fase==='Final'?'🏆 Final':fase==='Tercer puesto'?'🥉 Tercer puesto':`🏆 ${fase} de Final`;
+      html+=`<div class="card" style="margin-bottom:8px;background:var(--dark4)">
+        <div class="card-head pts-collapse" onclick="toggleSection(this)" style="font-size:12px">
+          ${faseLabel} <span class="collapse-icon open">▼</span>
+        </div>
+        <div class="pts-collapse-body open">`;
+
+      byFaseKO[fase].forEach(p=>{
+        const pred=koPredMap[p.key];
+        const r=koResults[p.key];
+        const homeF=p.home_flag||'🏳️', awayF=p.away_flag||'🏳️';
+        let predStr='—';
+        if(pred){
+          const hv=pred.h!=null?+pred.h:null;
+          const av=pred.a!=null?+pred.a:null;
+          if(hv!=null&&av!=null&&!isNaN(hv)&&!isNaN(av)) predStr=`${hv} - ${av}`;
+          else if(pred.r) predStr=pred.r==='1'?`Gana ${p.home_name}`:pred.r==='X'?'Empate':`Gana ${p.away_name}`;
+        }
+        let pts='';
+        if(r&&pred){
+          const p2=calcPtsKO(pred,r,r[2]);
+          pts=`<span class="pts-pill${p2===3?' gold':''}" style="margin-left:6px">${p2}pt${p2!==1?'s':''}</span>`;
+        }
+        html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
+          <span>${homeF} ${p.home_name} vs ${p.away_name} ${awayF}</span>
+          <span style="font-weight:600;color:${pred?'var(--gold-light)':'var(--muted)'}">${predStr}${pts}</span>
+        </div>`;
+      });
+      html+=`</div></div>`;
+    });
+    html+=`</div></div>`;
+  }
+
   // ── Clasificados inferidos por grupo ──────────────────────
   const standing=calcClasifByUser(predMap);
   html+=`<div class="card" style="margin-top:10px">
