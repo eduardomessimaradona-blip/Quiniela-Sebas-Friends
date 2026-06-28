@@ -497,8 +497,8 @@ const PARTIDOS=[
   {key:'m65',fecha:'26 Jun',kickoff:'2026-06-27T03:00:00Z',grupo:'G',home:{n:'Nueva Zelanda',f:'🇳🇿'},away:{n:'Bélgica',f:'🇧🇪'}},
   {key:'m66',fecha:'27 Jun',kickoff:'2026-06-27T21:00:00Z',grupo:'L',home:{n:'Panamá',f:'🇵🇦'},away:{n:'Inglaterra',f:'\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F'}},
   {key:'m67',fecha:'27 Jun',kickoff:'2026-06-27T21:00:00Z',grupo:'L',home:{n:'Croacia',f:'🇭🇷'},away:{n:'Ghana',f:'🇬🇭'}},
-  {key:'m68',fecha:'27 Jun',kickoff:'2026-06-27T23:30:00Z',grupo:'K',home:{n:'Colombia',f:'🇨🇴'},away:{n:'Portugal',f:'🇵🇹'}},
-  {key:'m69',fecha:'27 Jun',kickoff:'2026-06-27T23:30:00Z',grupo:'K',home:{n:'DR Congo',f:'🇨🇩'},away:{n:'Uzbekistán',f:'🇺🇿'}},
+  {key:'m68',fecha:'27 Jun',kickoff:'2026-06-28T23:30:00Z',grupo:'K',home:{n:'Colombia',f:'🇨🇴'},away:{n:'Portugal',f:'🇵🇹'}},
+  {key:'m69',fecha:'27 Jun',kickoff:'2026-06-28T23:30:00Z',grupo:'K',home:{n:'DR Congo',f:'🇨🇩'},away:{n:'Uzbekistán',f:'🇺🇿'}},
   {key:'m70',fecha:'27 Jun',kickoff:'2026-06-28T02:00:00Z',grupo:'J',home:{n:'Argelia',f:'🇩🇿'},away:{n:'Austria',f:'🇦🇹'}},
   {key:'m71',fecha:'27 Jun',kickoff:'2026-06-28T02:00:00Z',grupo:'J',home:{n:'Jordania',f:'🇯🇴'},away:{n:'Argentina',f:'🇦🇷'}},
 ];
@@ -839,7 +839,11 @@ async function showOtherPreds(playerId,playerName){
 
   const byDate={};
   lockedMatches.forEach(p=>{const fd=fechaLocal(p.kickoff);if(!byDate[fd])byDate[fd]=[];byDate[fd].push(p);});
-  let html=`<div class="card"><div class="card-head">📋 Pronósticos de ${playerName}</div>`;
+  let html=`<div class="card">
+    <div class="card-head pts-collapse" onclick="toggleSection(this)">
+      📋 Pronósticos de ${playerName} <span class="collapse-icon open">▼</span>
+    </div>
+    <div class="pts-collapse-body open">`;
   Object.keys(byDate).forEach(fecha=>{
     html+=`<div class="date-divider">📅 ${fecha}</div>`;
     byDate[fecha].forEach(p=>{
@@ -865,7 +869,7 @@ async function showOtherPreds(playerId,playerName){
       </div>`;
     });
   });
-  html+='</div>';
+  html+='</div></div>'; // close pts-collapse-body + card
 
   // ── Clasificados inferidos por grupo ──────────────────────
   const standing=calcClasifByUser(predMap);
@@ -1113,31 +1117,48 @@ async function renderKOAdminList(){
   });
   listEl.innerHTML=html;
 
-  // Results inputs
+  // Results inputs grouped by fase
+  const faseOrderRes=['Dieciseisavos','Octavos','Cuartos','Semis','Tercer puesto','Final'];
+  const byFaseRes={};
+  koPartidos.forEach(p=>{if(!byFaseRes[p.fase])byFaseRes[p.fase]=[];byFaseRes[p.fase].push(p);});
+
   let resHtml='';
-  koPartidos.forEach(p=>{
-    const r=koResults[p.key]||[];
-    const hv=r[0]!=null?r[0]:'', av=r[1]!=null?r[1]:'';
-    const wv=r[2]||''; // winner: '1','2' o '' si no hubo penaltis
-    resHtml+=`<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)">
-      <div style="display:grid;grid-template-columns:1fr 32px 16px 32px 1fr;gap:4px;align-items:center;margin-bottom:4px">
-        <div style="font-size:11px;text-align:right;color:var(--text)">${p.home_flag} ${p.home_name}</div>
-        <input type="number" min="0" max="20" id="kra_${p.key}_h" value="${hv}" placeholder="—"
-          style="text-align:center;font-size:13px;font-weight:600;padding:5px 2px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:var(--dark4);color:var(--text);width:100%">
-        <div style="text-align:center;font-size:11px;color:var(--muted)">-</div>
-        <input type="number" min="0" max="20" id="kra_${p.key}_a" value="${av}" placeholder="—"
-          style="text-align:center;font-size:13px;font-weight:600;padding:5px 2px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:var(--dark4);color:var(--text);width:100%">
-        <div style="font-size:11px;text-align:left;color:var(--text)">${p.away_name} ${p.away_flag}</div>
+  faseOrderRes.forEach(fase=>{
+    if(!byFaseRes[fase])return;
+    const faseLabel=fase==='Final'?'🏆 Final':fase==='Tercer puesto'?'🥉 Tercer puesto':`🏆 ${fase} de Final`;
+    resHtml+=`<div class="card" style="margin-bottom:8px;background:var(--dark4)">
+      <div class="card-head pts-collapse" onclick="toggleSection(this)" style="font-size:12px">
+        ${faseLabel} <span style="color:var(--muted);font-size:11px;margin-left:4px">(${byFaseRes[fase].length} partidos)</span>
+        <span class="collapse-icon">▼</span>
       </div>
-      <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
-        <span>🥅 Ganador (si penaltis):</span>
-        <select id="kra_${p.key}_w" style="font-size:11px;background:var(--dark3);color:var(--text);border:1px solid var(--border);padding:3px 6px;border-radius:6px">
-          <option value="">— Sin penaltis —</option>
-          <option value="1"${wv==='1'?' selected':''}>🏆 ${p.home_name}</option>
-          <option value="2"${wv==='2'?' selected':''}>🏆 ${p.away_name}</option>
-        </select>
-      </div>
-    </div>`;
+      <div class="pts-collapse-body">`;
+
+    byFaseRes[fase].forEach(p=>{
+      const r=koResults[p.key]||[];
+      const hv=r[0]!=null?r[0]:'', av=r[1]!=null?r[1]:'';
+      const wv=r[2]||'';
+      resHtml+=`<div style="padding:8px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px;letter-spacing:.5px">${p.key} · ${new Date(p.kickoff).toLocaleDateString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',timeZone:'UTC'})} UTC</div>
+        <div style="display:grid;grid-template-columns:1fr 32px 16px 32px 1fr;gap:4px;align-items:center;margin-bottom:6px">
+          <div style="font-size:11px;text-align:right;color:var(--text)">${p.home_flag} ${p.home_name}</div>
+          <input type="number" min="0" max="20" id="kra_${p.key}_h" value="${hv}" placeholder="—"
+            style="text-align:center;font-size:13px;font-weight:600;padding:5px 2px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:var(--dark3);color:var(--text);width:100%">
+          <div style="text-align:center;font-size:11px;color:var(--muted)">-</div>
+          <input type="number" min="0" max="20" id="kra_${p.key}_a" value="${av}" placeholder="—"
+            style="text-align:center;font-size:13px;font-weight:600;padding:5px 2px;border:1px solid rgba(255,255,255,.1);border-radius:6px;background:var(--dark3);color:var(--text);width:100%">
+          <div style="font-size:11px;text-align:left;color:var(--text)">${p.away_name} ${p.away_flag}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted)">
+          <span>🥅 Ganador si penaltis:</span>
+          <select id="kra_${p.key}_w" style="font-size:11px;background:var(--dark3);color:var(--text);border:1px solid var(--border);padding:3px 6px;border-radius:6px">
+            <option value="">— Sin penaltis —</option>
+            <option value="1"${wv==='1'?' selected':''}>🏆 ${p.home_name}</option>
+            <option value="2"${wv==='2'?' selected':''}>🏆 ${p.away_name}</option>
+          </select>
+        </div>
+      </div>`;
+    });
+    resHtml+=`</div></div>`;
   });
   document.getElementById('koResultsAdmin').innerHTML=resHtml||'<p style="font-size:12px;color:var(--muted)">Los resultados aparecerán aquí cuando haya equipos confirmados.</p>';
 }
@@ -1619,6 +1640,7 @@ async function saveKnockoutPreds(){
   const rows=[];
   koPartidos.forEach(p=>{
     if(isLocked(p.kickoff, LOCK_HOURS_KO))return;
+    const h=document.getElementById('koph_'+p.key),a=document.getElementById('kopa_'+p.key);
     const rs=document.getElementById('kors_'+p.key);
     const sel=rs?.dataset?.sel||null;
     const hv=h&&h.value!==''?+h.value:null,av=a&&a.value!==''?+a.value:null;
