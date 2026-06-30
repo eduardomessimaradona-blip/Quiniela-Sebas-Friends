@@ -1694,7 +1694,11 @@ async function saveKnockoutPreds(){
     const h=document.getElementById('koph_'+p.key),a=document.getElementById('kopa_'+p.key);
     const rs=document.getElementById('kors_'+p.key);
     const sel=rs?.dataset?.sel||null;
-    const hv=h&&h.value!==''?+h.value:null,av=a&&a.value!==''?+a.value:null;
+    let hv=h&&h.value!==''?+h.value:null;
+    let av=a&&a.value!==''?+a.value:null;
+    // Si solo uno está relleno, inferir el otro como 0
+    if(hv!==null&&av===null) av=0;
+    if(av!==null&&hv===null) hv=0;
     if(hv!==null||av!==null||sel)
       rows.push({participante_id:currentPlayer.id,match_key:p.key,goles_local:hv,goles_visitante:av,resultado:sel});
   });
@@ -1705,18 +1709,18 @@ async function saveKnockoutPreds(){
 }
 
 function calcPtsKO(pred,r,winner){
-  // r = [goles_local, goles_visitante] al final de prórroga
-  // winner = '1' o '2' si fue a penaltis (lo introduce el admin), null si no
   if(!r||!pred)return 0;
   const rH=+r[0],rA=+r[1];
-  const pH=pred.h!=null?+pred.h:null;
-  const pA=pred.a!=null?+pred.a:null;
+  // Si solo uno de los dos goles está relleno, inferir el otro como 0
+  let pH=pred.h!=null?+pred.h:null;
+  let pA=pred.a!=null?+pred.a:null;
+  if(pH!==null&&pA===null) pA=0;
+  if(pA!==null&&pH===null) pH=0;
   const hasScore=pH!==null&&pA!==null&&!isNaN(pH)&&!isNaN(pA);
-  // 3pts: marcador exacto al final de prórroga
+  // 3pts: marcador exacto
   if(hasScore&&pH===rH&&pA===rA){
-    // Si fue a penaltis, además debe haber acertado el ganador
     if(rH===rA&&winner){
-      return pred.r===winner?3:1; // acertó marcador pero no ganador → 1pt
+      return pred.r===winner?3:1;
     }
     return 3;
   }
