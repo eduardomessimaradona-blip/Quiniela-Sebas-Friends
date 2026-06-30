@@ -902,8 +902,10 @@ async function showOtherPreds(playerId,playerName){
         const homeF=p.home_flag||'🏳️', awayF=p.away_flag||'🏳️';
         let predStr='—';
         if(pred){
-          const hv=pred.h!=null?+pred.h:null;
-          const av=pred.a!=null?+pred.a:null;
+          let hv=pred.h!=null?+pred.h:null;
+          let av=pred.a!=null?+pred.a:null;
+          if(hv!==null&&av===null) av=0;
+          if(av!==null&&hv===null) hv=0;
           if(hv!=null&&av!=null&&!isNaN(hv)&&!isNaN(av)) predStr=`${hv} - ${av}`;
           else if(pred.r) predStr=pred.r==='1'?`Gana ${p.home_name}`:pred.r==='X'?'Empate':`Gana ${p.away_name}`;
         }
@@ -1603,7 +1605,7 @@ async function renderKnockout(){
       let scoreHtml='';
       if(r){
         scoreHtml=`<div style="display:flex;align-items:center;gap:4px;margin-top:4px">
-          <span style="font-size:9px;color:var(--muted)">Resultado sin Penalties\':</span>
+          <span style="font-size:9px;color:var(--muted)">Resultado 90\':</span>
           <span class="score-real" style="font-size:12px;padding:2px 6px">${r[0]}–${r[1]}</span>
         </div>`;
       }
