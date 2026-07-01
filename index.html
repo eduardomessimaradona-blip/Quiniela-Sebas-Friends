@@ -418,6 +418,11 @@ function toggleSection(headEl){
   if(icon) icon.classList.toggle('open');
 }
 
+function toggleLBDetail(id){
+  const row=document.getElementById(id);
+  if(row) row.style.display=row.style.display==='none'?'':'none';
+}
+
 // ── CONFIG ────────────────────────────────────────────────────
 const SUPABASE_URL='https://lnefvahjpfbtomupfgkd.supabase.co';
 const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxuZWZ2YWhqcGZidG9tdXBmZ2tkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk2MzMyNTUsImV4cCI6MjA5NTIwOTI1NX0.Prb2IP_Znj3m0PumoW6vIbDUpdEBM7i4Z8gq17HQ6fQ';
@@ -827,61 +832,26 @@ async function showOtherPreds(playerId,playerName){
   document.querySelectorAll('.other-card').forEach(c=>c.classList.remove('selected'));
   event.currentTarget.classList.add('selected');
   document.getElementById('othersMatchView').innerHTML='<div class="loading"><span class="spinner"></span>Cargando pronósticos...</div>';
-  const {data:preds}=await sb.from('pronosticos').select('*').eq('participante_id',playerId);
+
+  const [{data:preds},{data:koPreds}]=await Promise.all([
+    sb.from('pronosticos').select('*').eq('participante_id',playerId),
+    sb.from('pronosticos_eliminatoria').select('*').eq('participante_id',playerId)
+  ]);
   const predMap={};(preds||[]).forEach(p=>predMap[p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado});
-
-  // Only show locked matches
-  const lockedMatches=PARTIDOS.filter(p=>isLocked(p.kickoff));
-  if(!lockedMatches.length){
-    document.getElementById('othersMatchView').innerHTML='<div class="card"><p style="font-size:13px;color:var(--muted);text-align:center;padding:8px">Los pronósticos se revelan cuando los partidos se cierran (3h antes del inicio).</p></div>';
-    return;
-  }
-
-  const byDate={};
-  lockedMatches.forEach(p=>{const fd=fechaLocal(p.kickoff);if(!byDate[fd])byDate[fd]=[];byDate[fd].push(p);});
-  let html=`<div class="card">
-    <div class="card-head pts-collapse" onclick="toggleSection(this)">
-      📋 Pronósticos de ${playerName} <span class="collapse-icon open">▼</span>
-    </div>
-    <div class="pts-collapse-body open">`;
-  Object.keys(byDate).forEach(fecha=>{
-    html+=`<div class="date-divider">📅 ${fecha}</div>`;
-    byDate[fecha].forEach(p=>{
-      const pred=predMap[p.key];
-      const r=results[p.key];
-      let predStr='—';
-      if(pred){
-        const hv=pred.h!=null?+pred.h:(pred.a!=null?0:null);
-        const av=pred.a!=null?+pred.a:(pred.h!=null?0:null);
-        const hasScore=hv!=null&&av!=null&&!isNaN(hv)&&!isNaN(av);
-        const hasSel=pred.r!=null;
-        if(hasScore) predStr=`${hv} - ${av}`;
-        else if(hasSel) predStr=pred.r==='1'?`Gana ${p.home.n}`:pred.r==='X'?'Empate':`Gana ${p.away.n}`;
-      }
-      let pts='';
-      if(r&&pred){
-        const p_pts=calcPtsMatch(pred,r);
-        pts=`<span class="pts-pill${p_pts===3?' gold':''}" style="margin-left:6px">${p_pts}pt${p_pts!==1?'s':''}</span>`;
-      }
-      html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
-        <span>${p.home.f} ${p.home.n} vs ${p.away.n} ${p.away.f}</span>
-        <span style="font-weight:600;color:${pred?'var(--gold-light)':'var(--muted)'}">${predStr}${pts}</span>
-      </div>`;
-    });
-  });
-  html+='</div></div>'; // close pts-collapse-body + card
-
-  // ── Pronósticos eliminatoria ───────────────────────────────
-  const {data:koPreds}=await sb.from('pronosticos_eliminatoria').select('*').eq('participante_id',playerId);
   const koPredMap={};(koPreds||[]).forEach(p=>koPredMap[p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado});
 
-  const lockedKO=koPartidos.filter(p=>isLocked(p.kickoff,LOCK_HOURS_KO));
+  let html='';
+
+  // ── 1) ELIMINATORIA (arriba) ───────────────────────────────
+  const lockedKO=koPartidos.filter(p=>isLocked(p.kickoff,LOCK_HOURS_KO))
+    .sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff)); // orden cronológico
+
   if(lockedKO.length){
     const byFaseKO={};
     lockedKO.forEach(p=>{if(!byFaseKO[p.fase])byFaseKO[p.fase]=[];byFaseKO[p.fase].push(p);});
     const faseOrderKO=['Dieciseisavos','Octavos','Cuartos','Semis','Tercer puesto','Final'];
 
-    html+=`<div class="card" style="margin-top:10px">
+    html+=`<div class="card" style="margin-bottom:10px">
       <div class="card-head pts-collapse" onclick="toggleSection(this)">
         🏆 Eliminatoria — Pronósticos de ${playerName} <span class="collapse-icon open">▼</span>
       </div>
@@ -901,13 +871,21 @@ async function showOtherPreds(playerId,playerName){
         const r=koResults[p.key];
         const homeF=p.home_flag||'🏳️', awayF=p.away_flag||'🏳️';
         let predStr='—';
+        let ganadorStr='';
         if(pred){
           let hv=pred.h!=null?+pred.h:null;
           let av=pred.a!=null?+pred.a:null;
           if(hv!==null&&av===null) av=0;
           if(av!==null&&hv===null) hv=0;
-          if(hv!=null&&av!=null&&!isNaN(hv)&&!isNaN(av)) predStr=`${hv} - ${av}`;
-          else if(pred.r) predStr=pred.r==='1'?`Gana ${p.home_name}`:pred.r==='X'?'Empate':`Gana ${p.away_name}`;
+          if(hv!=null&&av!=null&&!isNaN(hv)&&!isNaN(av)){
+            predStr=`${hv} - ${av}`;
+            // Si empate en marcador, mostrar quién eligió como ganador
+            if(hv===av&&pred.r&&pred.r!=='X'){
+              ganadorStr=`<span style="font-size:10px;color:var(--muted);margin-left:4px">(Gana ${pred.r==='1'?p.home_name:p.away_name})</span>`;
+            }
+          } else if(pred.r){
+            predStr=pred.r==='1'?`Gana ${p.home_name}`:pred.r==='X'?'Empate':`Gana ${p.away_name}`;
+          }
         }
         let pts='';
         if(r&&pred){
@@ -916,7 +894,7 @@ async function showOtherPreds(playerId,playerName){
         }
         html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
           <span>${homeF} ${p.home_name} vs ${p.away_name} ${awayF}</span>
-          <span style="font-weight:600;color:${pred?'var(--gold-light)':'var(--muted)'}">${predStr}${pts}</span>
+          <span style="font-weight:600;color:${pred?'var(--gold-light)':'var(--muted)'};display:flex;align-items:center;flex-wrap:wrap;justify-content:flex-end;gap:2px">${predStr}${ganadorStr}${pts}</span>
         </div>`;
       });
       html+=`</div></div>`;
@@ -924,7 +902,52 @@ async function showOtherPreds(playerId,playerName){
     html+=`</div></div>`;
   }
 
-  // ── Clasificados inferidos por grupo ──────────────────────
+  // ── 2) FASE DE GRUPOS (debajo) ────────────────────────────
+  const lockedMatches=PARTIDOS.filter(p=>isLocked(p.kickoff))
+    .sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff)); // orden cronológico
+
+  if(!lockedMatches.length && !lockedKO.length){
+    document.getElementById('othersMatchView').innerHTML='<div class="card"><p style="font-size:13px;color:var(--muted);text-align:center;padding:8px">Los pronósticos se revelan cuando los partidos se cierran (3h antes del inicio).</p></div>';
+    return;
+  }
+
+  if(lockedMatches.length){
+    const byDate={};
+    lockedMatches.forEach(p=>{const fd=fechaLocal(p.kickoff);if(!byDate[fd])byDate[fd]=[];byDate[fd].push(p);});
+    html+=`<div class="card" style="margin-bottom:10px">
+      <div class="card-head pts-collapse" onclick="toggleSection(this)">
+        📋 Fase de grupos — Pronósticos de ${playerName} <span class="collapse-icon">▼</span>
+      </div>
+      <div class="pts-collapse-body">`;
+
+    Object.keys(byDate).forEach(fecha=>{
+      html+=`<div class="date-divider">📅 ${fecha}</div>`;
+      byDate[fecha].forEach(p=>{
+        const pred=predMap[p.key];
+        const r=results[p.key];
+        let predStr='—';
+        if(pred){
+          const hv=pred.h!=null?+pred.h:(pred.a!=null?0:null);
+          const av=pred.a!=null?+pred.a:(pred.h!=null?0:null);
+          const hasScore=hv!=null&&av!=null&&!isNaN(hv)&&!isNaN(av);
+          if(hasScore) predStr=`${hv} - ${av}`;
+          else if(pred.r) predStr=pred.r==='1'?`Gana ${p.home.n}`:pred.r==='X'?'Empate':`Gana ${p.away.n}`;
+        }
+        let pts='';
+        if(r&&pred){
+          const p_pts=calcPtsMatch(pred,r);
+          pts=`<span class="pts-pill${p_pts===3?' gold':''}" style="margin-left:6px">${p_pts}pt${p_pts!==1?'s':''}</span>`;
+        }
+        html+=`<div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:12px">
+          <span>${p.home.f} ${p.home.n} vs ${p.away.n} ${p.away.f}</span>
+          <span style="font-weight:600;color:${pred?'var(--gold-light)':'var(--muted)'}">${predStr}${pts}</span>
+        </div>`;
+      });
+    });
+    html+=`</div></div>`;
+  }
+
+  // ── 3) CLASIFICADOS ───────────────────────────────────────
   const standing=calcClasifByUser(predMap);
   html+=`<div class="card" style="margin-top:10px">
     <div class="card-head pts-collapse" onclick="toggleSection(this)">
@@ -1412,11 +1435,11 @@ async function renderLB(){
   const bonusMap={};(allBonus||[]).forEach(b=>bonusMap[b.participante_id]=b);
   const koPredMap={};(allKOPreds||[]).forEach(p=>{if(!koPredMap[p.participante_id])koPredMap[p.participante_id]={};koPredMap[p.participante_id][p.match_key]={h:p.goles_local,a:p.goles_visitante,r:p.resultado};});
   const scores=(players||[]).map(p=>{
-    let pts=0,exact=0,ptsB=0,ptsKO=0,ptsClasif=0;
+    let pts=0,exact=0,ptsB=0,ptsKO=0,ptsClasif=0,ptsMatch=0;
     const pm=predMap[p.id]||{};
     PARTIDOS.forEach(m=>{
       const r=results[m.key],pr=pm[m.key];if(!r||!pr)return;
-      const p2=calcPtsMatch(pr,r);pts+=p2;if(p2===3)exact++;
+      const p2=calcPtsMatch(pr,r);pts+=p2;ptsMatch+=p2;if(p2===3)exact++;
     });
     // Puntos clasificados (inferidos de pronósticos)
     ptsClasif=calcPtsClasif(pm);
@@ -1431,18 +1454,61 @@ async function renderLB(){
     if(bonusReal.subcamp&&bm.subcamp===bonusReal.subcamp){pts+=2;ptsB+=2;}
     if(bonusReal.goleador&&bm.goleador===bonusReal.goleador){pts+=3;ptsB+=3;}
     if(bonusReal.mvp&&bm.mvp===bonusReal.mvp){pts+=2;ptsB+=2;}
-    return{name:p.nombre,pts,exact,ptsB,ptsKO,ptsClasif,isMe:p.id===currentPlayer.id};
+    return{name:p.nombre,pts,exact,ptsMatch,ptsB,ptsKO,ptsClasif,isMe:p.id===currentPlayer.id};
   }).sort((a,b)=>b.pts-a.pts||b.exact-a.exact);
 
   const el=document.getElementById('lbContainer');
   if(!scores.length){el.innerHTML='<p style="font-size:13px;color:var(--muted)">Sin participantes.</p>';return;}
-  el.innerHTML=`<table class="lb-table"><thead><tr><th>#</th><th>Jugador</th><th>Pts</th><th>⚽</th><th>🏅Clas.</th><th>🏆KO</th><th>⭐</th></tr></thead><tbody>
-    ${scores.map((s,i)=>`<tr${s.isMe?' style="background:rgba(212,160,23,.06)"':''}>
+
+  // Leyenda de columnas
+  let lbHtml=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px;font-size:11px;color:var(--muted)">
+    <span>⚽ Exactos</span><span>·</span>
+    <span>✅ Grupos</span><span>·</span>
+    <span>🏅 Clasif.</span><span>·</span>
+    <span>🏆 KO</span><span>·</span>
+    <span>⭐ Bonus</span>
+  </div>`;
+
+  lbHtml+=`<table class="lb-table"><thead><tr>
+    <th>#</th><th>Jugador</th>
+    <th title="Total">Total</th>
+    <th title="Marcadores exactos">⚽</th>
+    <th title="Puntos por resultados (1X2)">✅</th>
+    <th title="Clasificados acertados">🏅</th>
+    <th title="Puntos eliminatoria">🏆</th>
+    <th title="Bonus finales">⭐</th>
+  </tr></thead><tbody>`;
+
+  scores.forEach((s,i)=>{
+    const rowStyle=s.isMe?'background:rgba(212,160,23,.06)':'';
+    // ptsGrupos = total partidos - exactos*3 - resto*1 ... simplificado: pts grupos = ptsMatch
+    const ptsResult=s.ptsMatch-s.exact*3; // 1pt por resultado correcto
+    lbHtml+=`<tr style="${rowStyle}" onclick="toggleLBDetail('lbd_${i}')" style="cursor:pointer">
       <td><span class="medal ${['m1','m2','m3'][i]||'mn'}">${['🥇','🥈','🥉'][i]||i+1}</span></td>
       <td style="font-weight:500">${s.name}${s.isMe?' 👤':''}</td>
       <td><span class="pts-pill${i===0?' gold':''}">${s.pts}</span></td>
-      <td>${s.exact}</td><td>${s.ptsClasif}</td><td>${s.ptsKO}</td><td>${s.ptsB}</td>
-    </tr>`).join('')}</tbody></table>`;
+      <td style="color:var(--gold-light)">${s.exact}</td>
+      <td>${ptsResult}</td>
+      <td>${s.ptsClasif}</td>
+      <td>${s.ptsKO}</td>
+      <td>${s.ptsB}</td>
+    </tr>
+    <tr id="lbd_${i}" style="display:none;${rowStyle}">
+      <td colspan="8" style="padding:6px 12px 10px">
+        <div style="display:flex;flex-wrap:wrap;gap:6px;font-size:11px">
+          <span style="background:rgba(0,40,104,.3);padding:3px 8px;border-radius:12px;color:#7EB3FF">⚽ ${s.exact} exactos × 3 = <strong>${s.exact*3}pts</strong></span>
+          <span style="background:rgba(0,40,104,.3);padding:3px 8px;border-radius:12px;color:#7EB3FF">✅ ${ptsResult} resultados = <strong>${ptsResult}pts</strong></span>
+          <span style="background:rgba(212,160,23,.15);padding:3px 8px;border-radius:12px;color:var(--gold-light)">🏅 Clasif. = <strong>${s.ptsClasif}pts</strong></span>
+          <span style="background:rgba(0,122,51,.2);padding:3px 8px;border-radius:12px;color:#5DD68A">🏆 KO = <strong>${s.ptsKO}pts</strong></span>
+          <span style="background:rgba(200,16,46,.15);padding:3px 8px;border-radius:12px;color:#FF6B7A">⭐ Bonus = <strong>${s.ptsB}pts</strong></span>
+          <span style="background:rgba(255,255,255,.08);padding:3px 8px;border-radius:12px;font-weight:700">= ${s.pts}pts total</span>
+        </div>
+      </td>
+    </tr>`;
+  });
+  lbHtml+=`</tbody></table>
+  <p style="font-size:10px;color:var(--muted);margin-top:8px;text-align:center">Toca un jugador para ver el desglose de puntos</p>`;
+  el.innerHTML=lbHtml;
 
   const played=PARTIDOS.filter(p=>results[p.key]);
   if(played.length){
@@ -1573,6 +1639,7 @@ async function renderKnockout(){
 
   const byFase={};
   koPartidos.forEach(p=>{if(!byFase[p.fase])byFase[p.fase]=[];byFase[p.fase].push(p);});
+  Object.keys(byFase).forEach(f=>byFase[f].sort((a,b)=>new Date(a.kickoff)-new Date(b.kickoff)));
 
   const faseOrder=['Dieciseisavos','Octavos','Cuartos','Semis','Tercer puesto','Final'];
   let html='<div class="notice">🔒 Pronósticos bloqueados <strong>1 hora antes</strong>. El resultado cuenta al final del tiempo reglamentario + prórroga (sin penaltis). Si pronosticas empate en el marcador, selecciona también quién gana (1 o 2).</div>';
